@@ -1,6 +1,6 @@
 import logging
 from typing import List, Dict, Any
-from pinecone import Pinecone, ServerlessSpec
+import pinecone
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -10,31 +10,32 @@ class PineconeService:
         if not settings.pinecone_api_key:
             raise ValueError("PINECONE_API_KEY non configurata")
         
-        self.pc = Pinecone(api_key=settings.pinecone_api_key)
+        # Inizializza Pinecone (versione 2.2.4)
+        pinecone.init(
+            api_key=settings.pinecone_api_key,
+            environment=settings.pinecone_region
+        )
+        
         self.index_name = settings.pinecone_index_name
         
         # Assicurati che l'indice esista
         self._ensure_index_exists()
         
         # Connettiti all'indice
-        self.index = self.pc.Index(self.index_name)
+        self.index = pinecone.Index(self.index_name)
 
     def _ensure_index_exists(self):
         """Crea l'indice se non esiste"""
         try:
-            existing_indexes = [index.name for index in self.pc.list_indexes()]
+            existing_indexes = pinecone.list_indexes()
             
             if self.index_name not in existing_indexes:
                 logger.info(f"Creazione indice Pinecone: {self.index_name}")
                 
-                self.pc.create_index(
+                pinecone.create_index(
                     name=self.index_name,
                     dimension=1536,  # OpenAI embeddings dimension
-                    metric='cosine',
-                    spec=ServerlessSpec(
-                        cloud=settings.pinecone_cloud,
-                        region=settings.pinecone_region
-                    )
+                    metric='cosine'
                 )
                 logger.info(f"Indice {self.index_name} creato con successo")
             else:
