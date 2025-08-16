@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import check_api_key
 from app.schemas import UpsertIn, UpsertOut, QueryIn, QueryOut, AnswerIn, AnswerOut
-from app.core.config import settings
+from app.services.chunking import chunk_text
+from app.services.rag import upsert_chunks, semantic_search, answer_from_context
 import logging
 
 logger = logging.getLogger(__name__)
@@ -15,14 +16,17 @@ def health():
 @router.post("/embed-upsert", response_model=UpsertOut, dependencies=[Depends(check_api_key)])
 def embed_upsert(body: UpsertIn):
     try:
-        # Implementazione temporanea semplice
-        # Dividi il testo in chunks semplici
-        text = body.text
-        chunk_size = 1000
-        chunks = [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
+        # Chunking del testo
+        chunks = chunk_text(body.text, chunk_size=1000, overlap=150)
+        logger.info(f"Creati {len(chunks)} chunks per {body.item_id}")
         
-        # Per ora restituiamo solo gli ID dei chunks
-        chunk_ids = [f"{body.item_id}_{i:04d}" for i in range(len(chunks))]
+        # Upsert reale con OpenAI + Pinecone
+        chunk_ids = upsert_chunks(
+            user_id=body.user_id,
+            item_id=body.item_id, 
+            title=body.title,
+            chunks=chunks
+        )
         
         return UpsertOut(ok=True, ids=chunk_ids)
         
@@ -33,19 +37,12 @@ def embed_upsert(body: UpsertIn):
 @router.post("/query", response_model=QueryOut, dependencies=[Depends(check_api_key)])
 def query(body: QueryIn):
     try:
-        # Implementazione temporanea - restituisce match fittizi
-        matches = [
-            {
-                "id": "doc_001_0000",
-                "score": 0.95,
-                "metadata": {
-                    "user_id": body.user_id,
-                    "item_id": "doc_001",
-                    "title": "Test Document",
-                    "preview": "Questo è un documento di test..."
-                }
-            }
-        ]
+        # Ricerca semantica reale
+        matches = semantic_search(
+            user_id=body.user_id,
+            query=body.query,
+            top_k=body.top_k
+        )
         
         return QueryOut(matches=matches)
         
@@ -56,8 +53,11 @@ def query(body: QueryIn):
 @router.post("/answer", response_model=AnswerOut, dependencies=[Depends(check_api_key)])
 def answer(body: AnswerIn):
     try:
-        # Implementazione temporanea - risposta fissa
-        answer_text = f"Basandomi sui documenti forniti, ecco la risposta alla tua domanda: '{body.query}'. Al momento sto usando una risposta di test."
+        # Generazione risposta reale con GPT
+        answer_text = answer_from_context(
+            query=body.query,
+            contexts=body.contexts
+        )
         
         return AnswerOut(answer=answer_text)
         

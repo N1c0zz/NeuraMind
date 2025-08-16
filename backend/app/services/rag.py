@@ -1,7 +1,7 @@
 import logging
 from typing import List, Dict, Any
 from app.core.config import settings
-from app.services.openai_service import OpenAIService
+from app.services.openai_client import OpenAIService
 from app.services.pinecone_client import PineconeService
 
 logger = logging.getLogger(__name__)
