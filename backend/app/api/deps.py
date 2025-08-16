@@ -1,6 +1,15 @@
-from fastapi import Header, HTTPException, status
-from app.core.config import get_settings
+from fastapi import HTTPException, Depends
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from app.core.config import settings
 
-async def check_api_key(x_api_key: str = Header(None)):
-    if x_api_key != get_settings().DEV_API_KEY:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
+security = HTTPBearer()
+
+async def check_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Verifica API key nell'header Authorization"""
+    if credentials.credentials != settings.dev_api_key:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    return credentials.credentials
+
+def get_current_settings():
+    """Restituisce le impostazioni correnti"""
+    return settings
