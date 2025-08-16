@@ -3,14 +3,15 @@ from typing import Optional
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
-    # API Keys - Railway le prenderà dalle environment variables
+    # API Keys
     openai_api_key: Optional[str] = None
     pinecone_api_key: Optional[str] = None
     dev_api_key: str = "super-secret-for-local"
     
     # Pinecone Config
-    pinecone_environment: str = "gcp-starter"
-    pinecone_index_name: str = "neuramind"
+    pinecone_index_name: str = "neuramind-index"
+    pinecone_cloud: str = "aws"
+    pinecone_region: str = "us-east-1"
     
     # Environment
     environment: str = "development"
@@ -23,9 +24,16 @@ class Settings(BaseSettings):
         super().__init__(**kwargs)
         
         # Prendi le variabili da Railway
-        if not self.openai_api_key:
-            self.openai_api_key = os.getenv("OPENAI_API_KEY")
-        if not self.pinecone_api_key:
-            self.pinecone_api_key = os.getenv("PINECONE_API_KEY")
+        self.openai_api_key = os.getenv("OPENAI_API_KEY", self.openai_api_key)
+        self.pinecone_api_key = os.getenv("PINECONE_API_KEY", self.pinecone_api_key)
+        self.pinecone_index_name = os.getenv("PINECONE_INDEX", self.pinecone_index_name)
+        self.pinecone_cloud = os.getenv("PINECONE_CLOUD", self.pinecone_cloud)
+        self.pinecone_region = os.getenv("PINECONE_REGION", self.pinecone_region)
 
+# Istanza globale
 settings = Settings()
+
+# Funzione per compatibilità con eventuali import
+def get_settings() -> Settings:
+    """Restituisce l'istanza delle impostazioni"""
+    return settings

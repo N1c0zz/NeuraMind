@@ -44,7 +44,7 @@ class PineconeService:
             logger.error(f"Errore configurazione Pinecone: {e}")
             raise
 
-    async def upsert_vectors(self, vectors: List[Dict[str, Any]]) -> bool:
+    def upsert_vectors(self, vectors: List[Dict[str, Any]]) -> bool:
         """Inserisce/aggiorna vettori in Pinecone"""
         try:
             response = self.index.upsert(vectors=vectors)
@@ -54,8 +54,8 @@ class PineconeService:
             logger.error(f"Errore upsert: {e}")
             raise
 
-    async def query_vectors(self, query_vector: List[float], top_k: int = 5, 
-                          filter_dict: Dict = None) -> List[Dict]:
+    def query_vectors(self, query_vector: List[float], top_k: int = 5, 
+                     filter_dict: Dict = None) -> List[Dict]:
         """Cerca vettori simili"""
         try:
             response = self.index.query(

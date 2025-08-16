@@ -1,18 +1,54 @@
-from openai import OpenAI
-from app.core.config import get_settings
+import logging
+from typing import List
+import openai
+from app.core.config import settings
 
-settings = get_settings()
-oa = OpenAI(api_key=settings.OPENAI_API_KEY)
+logger = logging.getLogger(__name__)
 
-def embed_texts(texts: list[str]) -> list[list[float]]:
-    # Usa il modello light per costi/latency contenuti (dim=1536)
-    resp = oa.embeddings.create(model="text-embedding-3-small", input=texts)
-    return [d.embedding for d in resp.data]
+class OpenAIService:
+    def __init__(self, api_key: str = None):
+        self.api_key = api_key or settings.openai_api_key
+        if not self.api_key:
+            raise ValueError("OpenAI API key non configurata")
+        
+        self.client = openai.OpenAI(api_key=self.api_key)
 
-def chat_answer(system: str, user: str) -> str:
-    resp = oa.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role":"system","content":system},{"role":"user","content":user}],
-        temperature=0.2,
-    )
-    return resp.choices[0].message.content
+    def create_embedding(self, text: str) -> List[float]:
+        """Crea embedding per un testo"""
+        try:
+            response = self.client.embeddings.create(
+                model="text-embedding-ada-002",
+                input=text
+            )
+            return response.data[0].embedding
+        except Exception as e:
+            logger.error(f"Errore creazione embedding: {e}")
+            raise
+
+    def generate_answer(self, query: str, context: str) -> str:
+        """Genera una risposta basata su query e contesto"""
+        try:
+            prompt = f"""Basandoti esclusivamente sui seguenti documenti, rispondi alla domanda dell'utente.
+Se la risposta non è presente nei documenti, rispondi "Non ho informazioni sufficienti per rispondere a questa domanda nei documenti forniti."
+
+DOCUMENTI:
+{context}
+
+DOMANDA: {query}
+
+RISPOSTA:"""
+
+            response = self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "Sei un assistente che risponde solo basandosi sui documenti forniti."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=500,
+                temperature=0.3
+            )
+            
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            logger.error(f"Errore generazione risposta: {e}")
+            raise
