@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+pydantic-settings
+openai>=1.0.0
+pinecone>=6
+httpx
+python-multipart
+pillow
+pytesseract

@@ -1,5 +1,6 @@
 # Python
 venv/
+.venv/
 __pycache__/
 *.pyc
 *.pyo
@@ -19,7 +20,6 @@ Thumbs.db
 
 # Env files
 .env
-.env.*
 
 # Node
 node_modules/
