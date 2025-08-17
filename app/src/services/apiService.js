@@ -177,10 +177,33 @@ class ApiService {
   // Lista documenti
   async listDocuments(userId) {
     try {
+      console.log('📁 Loading documents for user:', userId);
+      
       const response = await this.api.get(`/documents/${userId}`);
+      
+      console.log('📁 Documents loaded successfully:', response.data);
       return response.data;
     } catch (error) {
-      console.error('List documents failed:', error);
+      console.error('❌ List documents failed:', error);
+      console.error('❌ Error details:', {
+        status: error.response?.status,
+        data: error.response?.data,
+      });
+      throw error;
+    }
+  }
+
+  // Elimina documento
+  async deleteDocument(userId, itemId) {
+    try {
+      console.log('🗑️ Deleting document:', { userId, itemId });
+      
+      const response = await this.api.delete(`/documents/${userId}/${itemId}`);
+      
+      console.log('🗑️ Document deleted successfully:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Delete document failed:', error);
       throw error;
     }
   }

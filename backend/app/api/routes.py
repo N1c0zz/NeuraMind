@@ -2,11 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from app.api.deps import check_api_key
 from app.schemas import (
     UpsertIn, UpsertOut, QueryIn, QueryOut, AnswerIn, AnswerOut,
-    DocumentUploadOut, DocumentUploadError, DocumentListOut
+    DocumentUploadOut, DocumentUploadError, DocumentListOut, DocumentInfo
 )
 from app.services.chunking import chunk_text
 from app.services.rag import upsert_chunks, semantic_search, answer_from_context
 from app.services.ocr_service import ocr_service
+from app.services.document_service import document_service
 import logging
 import time
 import uuid
@@ -132,16 +133,25 @@ async def upload_document(
 ):
     """
     Upload documento immagine → OCR → RAG
-    
-    Args:
-        file: File immagine (JPEG, PNG, etc.)
-        title: Titolo documento (opzionale)
-        user_id: ID utente
-        language: Lingue OCR (default: ita+eng)
+    Con limite di 10 documenti per utente
     """
     start_time = time.time()
     
     try:
+        # 0. Controllo limite documenti
+        if not document_service.can_upload_document(user_id):
+            current_count = document_service.count_user_documents(user_id)
+            
+            if current_count >= document_service.max_documents:
+                # Elimina il documento più vecchio
+                if document_service.delete_oldest_document(user_id):
+                    logger.info(f"Eliminato documento più vecchio per {user_id} (limite {document_service.max_documents})")
+                else:
+                    return DocumentUploadError(
+                        error=f"Limite di {document_service.max_documents} documenti raggiunto e impossibile eliminare documenti vecchi",
+                        error_code="LIMIT_EXCEEDED"
+                    )
+        
         # 1. Validazione file
         logger.info(f"File ricevuto: {file.filename}, tipo: {file.content_type}")
         
@@ -287,15 +297,62 @@ async def list_user_documents(user_id: str, limit: int = 50):
     """Lista documenti di un utente"""
     try:
         # TODO: Implementare query Pinecone per lista documenti
-        # Per ora restituiamo lista vuota
+@router.get("/documents/{user_id}", response_model=DocumentListOut, dependencies=[Depends(check_api_key)])
+def list_user_documents(user_id: str):
+    """
+    Lista documenti di un utente
+    """
+    try:
+        logger.info(f"Richiesta lista documenti per {user_id}")
+        
+        # Recupera documenti dal servizio
+        documents = document_service.get_user_documents(user_id)
+        
+        # Converti in oggetti DocumentInfo
+        document_infos = []
+        for doc in documents:
+            doc_info = DocumentInfo(
+                item_id=doc['item_id'],
+                title=doc['title'],
+                created_at=doc['created_at'],
+                upload_date=doc['upload_date'],
+                text_length=doc['text_length'],
+                chunks_count=doc['chunks_count'],
+                ocr_confidence=doc.get('ocr_confidence'),
+                text_preview=doc['text_preview'],
+                file_type=doc['file_type'],
+                user_id=doc['user_id']
+            )
+            document_infos.append(doc_info)
+        
         return DocumentListOut(
             user_id=user_id,
-            documents=[],
-            total_count=0
+            documents=document_infos,
+            total_count=len(document_infos),
+            max_documents=document_service.max_documents
         )
         
     except Exception as e:
-        logger.error(f"Errore lista documenti: {e}")
+        logger.error(f"Errore lista documenti per {user_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/documents/{user_id}/{item_id}", dependencies=[Depends(check_api_key)])
+def delete_user_document(user_id: str, item_id: str):
+    """
+    Elimina un documento specifico
+    """
+    try:
+        logger.info(f"Richiesta eliminazione documento {item_id} per {user_id}")
+        
+        success = document_service.delete_document(user_id, item_id)
+        
+        if success:
+            return {"success": True, "message": "Documento eliminato con successo"}
+        else:
+            raise HTTPException(status_code=404, detail="Documento non trovato")
+        
+    except Exception as e:
+        logger.error(f"Errore eliminazione documento {item_id} per {user_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

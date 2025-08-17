@@ -47,17 +47,22 @@ class DocumentUploadError(BaseModel):
     error_code: str
     details: Optional[Dict[str, Any]] = None
 
-class DocumentListOut(BaseModel):
-    """Lista documenti utente"""
-    user_id: str
-    documents: List[Dict[str, Any]]
-    total_count: int
-
 class DocumentInfo(BaseModel):
     """Info singolo documento"""
     item_id: str
     title: str
     created_at: str
+    upload_date: str
     text_length: int
     chunks_count: int
     ocr_confidence: Optional[float] = None
+    text_preview: str
+    file_type: str
+    user_id: str
+
+class DocumentListOut(BaseModel):
+    """Lista documenti utente"""
+    user_id: str
+    documents: List[DocumentInfo]
+    total_count: int
+    max_documents: int = 10

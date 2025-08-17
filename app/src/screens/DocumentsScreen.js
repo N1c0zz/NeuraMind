@@ -40,15 +40,24 @@ export default function DocumentsScreen({ navigation }) {
     try {
       setIsLoading(true);
       
-      // Per ora, dato che l'endpoint list-documents non esiste ancora,
-      // usiamo una lista vuota ma manteniamo la struttura per quando sarà implementato
+      // Carica documenti reali dal backend
+      const response = await apiService.listDocuments(CONFIG.USER_ID);
       
-      // Quando implementerai l'endpoint nel backend:
-      // const response = await apiService.listDocuments(CONFIG.USER_ID);
-      // setDocuments(response.documents || []);
+      // Converti i documenti dal backend al formato dell'app
+      const formattedDocuments = response.documents.map(doc => ({
+        id: doc.item_id,
+        title: doc.title,
+        uploadDate: new Date(doc.upload_date || doc.created_at),
+        type: doc.file_type === 'application/pdf' ? 'PDF' : 'Immagine',
+        size: `${Math.round(doc.text_length / 1024)} KB`, // Approssimazione
+        chunks: doc.chunks_count,
+        language: 'ita+eng', // Default, potresti salvarlo nei metadata
+        thumbnail: null,
+        textPreview: doc.text_preview,
+        ocrConfidence: doc.ocr_confidence,
+      }));
       
-      // Per ora lista vuota (nessun crash)
-      setDocuments([]);
+      setDocuments(formattedDocuments);
       
     } catch (error) {
       console.error('Error loading documents:', error);
@@ -83,7 +92,7 @@ export default function DocumentsScreen({ navigation }) {
     setFilteredDocuments(filtered);
   };
 
-  const deleteDocument = (documentId) => {
+  const deleteDocument = async (documentId) => {
     Alert.alert(
       'Elimina documento',
       'Sei sicuro di voler eliminare questo documento? Questa azione non può essere annullata.',
@@ -92,10 +101,23 @@ export default function DocumentsScreen({ navigation }) {
         {
           text: 'Elimina',
           style: 'destructive',
-          onPress: () => {
-            // Qui implementeresti la cancellazione dal backend
-            setDocuments(prev => prev.filter(doc => doc.id !== documentId));
-            Alert.alert('Successo', 'Documento eliminato');
+          onPress: async () => {
+            try {
+              setIsLoading(true);
+              
+              // Elimina dal backend
+              await apiService.deleteDocument(CONFIG.USER_ID, documentId);
+              
+              // Aggiorna la lista locale
+              setDocuments(prev => prev.filter(doc => doc.id !== documentId));
+              
+              Alert.alert('Successo', 'Documento eliminato con successo');
+            } catch (error) {
+              console.error('Error deleting document:', error);
+              Alert.alert('Errore', 'Impossibile eliminare il documento');
+            } finally {
+              setIsLoading(false);
+            }
           }
         }
       ]
@@ -168,7 +190,16 @@ export default function DocumentsScreen({ navigation }) {
 
         <Paragraph style={styles.documentDetails}>
           Lingua: {getLanguageLabel(item.language)}
+          {item.ocrConfidence && (
+            <Text style={styles.confidenceText}> • OCR: {(item.ocrConfidence * 100).toFixed(1)}%</Text>
+          )}
         </Paragraph>
+        
+        {item.textPreview && (
+          <Paragraph style={styles.textPreview} numberOfLines={2}>
+            {item.textPreview}
+          </Paragraph>
+        )}
       </Card.Content>
 
       <Card.Actions>
@@ -231,7 +262,19 @@ export default function DocumentsScreen({ navigation }) {
           </Text>
           <Text style={styles.statLabel}>Chunks totali</Text>
         </Surface>
+        <Surface style={styles.statCard} elevation={1}>
+          <Text style={styles.statNumber}>10</Text>
+          <Text style={styles.statLabel}>Limite max</Text>
+        </Surface>
       </View>
+      
+      {documents.length >= 10 && (
+        <Surface style={styles.warningCard} elevation={1}>
+          <Text style={styles.warningText}>
+            ⚠️ Limite raggiunto: I nuovi documenti sostituiranno automaticamente quelli più vecchi
+          </Text>
+        </Surface>
+      )}
     </View>
   );
 
@@ -354,6 +397,29 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.textLight,
     marginBottom: 0,
+  },
+  confidenceText: {
+    fontWeight: 'bold',
+    color: COLORS.success,
+  },
+  textPreview: {
+    fontSize: 12,
+    color: COLORS.textLight,
+    fontStyle: 'italic',
+    marginTop: SIZES.margin / 2,
+    lineHeight: 16,
+  },
+  warningCard: {
+    padding: SIZES.padding,
+    borderRadius: SIZES.borderRadius,
+    backgroundColor: COLORS.warning + '20',
+    marginBottom: SIZES.padding,
+  },
+  warningText: {
+    color: COLORS.warning,
+    fontSize: 14,
+    textAlign: 'center',
+    fontWeight: '500',
   },
   emptyContainer: {
     flex: 1,
