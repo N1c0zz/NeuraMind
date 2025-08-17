@@ -34,16 +34,16 @@ class OpenAIService:
     def generate_answer(self, query: str, context: str) -> str:
         """Genera una risposta basata su query e contesto"""
         try:
-            prompt = f"""Basandoti esclusivamente sui seguenti documenti, rispondi alla domanda dell'utente.
+            prompt = f"""Basandoti sui seguenti documenti estratti tramite OCR, rispondi alla domanda dell'utente.
 
-ISTRUZIONI SPECIALI:
-- Se la domanda richiede calcoli (media, somma, totale), eseguili utilizzando i numeri trovati nei documenti
-- Per domande su voti: estrai tutti i voti numerici e calcola la media se richiesto
-- Per domande sui crediti: cerca termini come "CFU", "crediti", "ECTS" nei documenti
-- Se devi fare calcoli, mostra sempre il procedimento: es. "Media: (28+30+24)/3 = 27.3"
-- Se la risposta non è presente nei documenti, rispondi "Non ho informazioni sufficienti per rispondere a questa domanda nei documenti forniti."
+ISTRUZIONI:
+- Analizza attentamente tutto il contenuto fornito
+- Se il contenuto è frammentato (tipico dell'OCR), cerca di interpretarlo nel contesto
+- Rispondi in modo utile e informativo
+- Se devi fare calcoli, mostra sempre il procedimento
+- IMPORTANTE: Il contenuto qui sotto proviene da documenti reali dell'utente, anche se può sembrare formattato male a causa dell'OCR
 
-DOCUMENTI:
+CONTENUTO DEI DOCUMENTI:
 {context}
 
 DOMANDA: {query}
@@ -53,11 +53,11 @@ RISPOSTA:"""
             response = self.client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
-                    {"role": "system", "content": "Sei un assistente intelligente che risponde solo basandosi sui documenti forniti. Puoi fare calcoli matematici quando necessario utilizzando i dati trovati nei documenti."},
+                    {"role": "system", "content": "Sei un assistente AI che analizza documenti estratti tramite OCR. Il tuo compito è fornire risposte utili basandoti sul contenuto fornito, anche quando il testo è mal formattato a causa dell'OCR. Sii flessibile nell'interpretazione e utile nelle risposte."},
                     {"role": "user", "content": prompt}
                 ],
-                max_tokens=500,
-                temperature=0.3
+                max_tokens=800,  # Aumentato per risposte più complete
+                temperature=0.1  # Più deterministico
             )
             return response.choices[0].message.content.strip()
             
