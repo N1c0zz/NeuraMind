@@ -258,7 +258,7 @@ export default function DocumentsScreen({ navigation }) {
         </Surface>
         <Surface style={styles.statCard} elevation={1}>
           <Text style={styles.statNumber}>
-            {documents.reduce((sum, doc) => sum + doc.chunks, 0)}
+            {documents.reduce((sum, doc) => sum + (doc.chunks || 0), 0)}
           </Text>
           <Text style={styles.statLabel}>Chunks totali</Text>
         </Surface>

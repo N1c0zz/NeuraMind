@@ -19,28 +19,33 @@ class DocumentService:
         try:
             logger.info(f"🔍 Cercando documenti per utente: {user_id}")
             
-            # Query Pinecone per tutti i documenti dell'utente
-            # Utilizziamo una query con filtro per ottenere i metadati
+            # Prova prima con il nuovo metodo
             filter_dict = {"user_id": user_id}
+            logger.info(f"🔍 Eseguendo list_vectors_by_filter con filtro: {filter_dict}")
             
-            # Facciamo una query dummy per ottenere tutti i chunk dell'utente
-            dummy_vector = [0.0] * 1536  # Vector size per OpenAI embeddings
-            
-            logger.info(f"🔍 Eseguendo query Pinecone con filtro: {filter_dict}")
-            
-            results = self.pinecone_service.query_vectors(
-                query_vector=dummy_vector,
-                top_k=1000,  # Alto numero per prendere tutti i chunk
+            results = self.pinecone_service.list_vectors_by_filter(
                 filter_dict=filter_dict,
-                include_metadata=True
+                limit=1000
             )
             
-            logger.info(f"📊 Query Pinecone restituita {len(results)} risultati")
+            logger.info(f"📊 list_vectors_by_filter restituita {len(results)} risultati")
+            
+            # Se non trova risultati, prova con query classica
+            if not results:
+                logger.info("� Provando con query_vectors classica...")
+                dummy_vector = [0.0] * 1536
+                results = self.pinecone_service.query_vectors(
+                    query_vector=dummy_vector,
+                    top_k=1000,
+                    filter_dict=filter_dict,
+                    include_metadata=True
+                )
+                logger.info(f"📊 query_vectors restituita {len(results)} risultati")
             
             # Log dei primi risultati per debug
             for i, match in enumerate(results[:3]):  # Solo primi 3 per evitare spam
                 metadata = match.get('metadata', {})
-                logger.info(f"   Risultato {i}: item_id={metadata.get('item_id')}, title={metadata.get('title')}")
+                logger.info(f"   Risultato {i}: id={match.get('id')}, item_id={metadata.get('item_id')}, title={metadata.get('title')}")
             
             # Raggruppa i chunk per documento
             documents_map = {}
