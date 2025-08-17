@@ -1,6 +1,5 @@
 import logging
 from typing import List, Dict, Any
-import pinecone
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -10,67 +9,82 @@ class PineconeService:
         if not settings.pinecone_api_key:
             raise ValueError("PINECONE_API_KEY non configurata")
         
-        # Inizializza Pinecone (versione 2.2.4) con gestione errori
+        # Prova prima l'API nuova, poi fallback alla vecchia
         try:
-            # Prova environment diversi per Pinecone
+            # API Nuova (3.x+)
+            from pinecone import Pinecone
+            
+            logger.info("🆕 Usando Pinecone API nuova (3.x+)")
+            self.pc = Pinecone(api_key=settings.pinecone_api_key)
+            self.use_new_api = True
+            
+        except ImportError:
+            # API Vecchia (2.x)
+            import pinecone
+            
+            logger.info("🔄 Usando Pinecone API vecchia (2.x)")
+            
+            # Gestione errori per environment
             environments_to_try = [
+                settings.pinecone_region,
                 "us-east-1-aws",
                 "us-east4-gcp", 
                 "europe-west1-gcp",
                 "asia-northeast1-gcp"
             ]
             
-            pinecone_env = settings.pinecone_region
-            if pinecone_env == "us-east-1":
-                pinecone_env = "us-east-1-aws"
+            for env in environments_to_try:
+                try:
+                    logger.info(f"Tentativo connessione environment: {env}")
+                    pinecone.init(
+                        api_key=settings.pinecone_api_key,
+                        environment=env
+                    )
+                    self.pinecone_env = env
+                    break
+                except Exception as e:
+                    logger.warning(f"Fallito environment {env}: {e}")
+                    continue
+            else:
+                raise ValueError("Impossibile connettersi a nessun environment Pinecone")
             
-            logger.info(f"Tentativo connessione Pinecone environment: {pinecone_env}")
-            
-            pinecone.init(
-                api_key=settings.pinecone_api_key,
-                environment=pinecone_env
-            )
-            
-        except Exception as e:
-            logger.error(f"Errore connessione Pinecone con {pinecone_env}: {e}")
-            # Prova environment di default
-            try:
-                logger.info("Tentativo con environment di default us-east-1-aws")
-                pinecone.init(
-                    api_key=settings.pinecone_api_key,
-                    environment="us-east-1-aws" 
-                )
-            except Exception as e2:
-                logger.error(f"Errore anche con environment di default: {e2}")
-                raise ValueError(f"Impossibile connettersi a Pinecone. Verifica API key e environment.")
+            self.pc = pinecone
+            self.use_new_api = False
         
         self.index_name = settings.pinecone_index_name
         
-        # Assicurati che l'indice esista
+        # Verifica che l'indice esista
         self._ensure_index_exists()
         
         # Connettiti all'indice
-        self.index = pinecone.Index(self.index_name)
+        if self.use_new_api:
+            self.index = self.pc.Index(self.index_name)
+        else:
+            self.index = self.pc.Index(self.index_name)
 
     def _ensure_index_exists(self):
-        """Crea l'indice se non esiste"""
+        """Verifica che l'indice esista"""
         try:
-            existing_indexes = pinecone.list_indexes()
+            if self.use_new_api:
+                # API Nuova
+                existing_indexes = [idx.name for idx in self.pc.list_indexes()]
+            else:
+                # API Vecchia
+                existing_indexes = self.pc.list_indexes()
             
             if self.index_name not in existing_indexes:
-                logger.info(f"Creazione indice Pinecone: {self.index_name}")
+                logger.error(f"❌ Indice {self.index_name} non trovato!")
+                logger.info(f"📋 Indici disponibili: {existing_indexes}")
+                logger.info(f"💡 Vai su console.pinecone.io e:")
+                logger.info(f"   1. Verifica che l'indice '{self.index_name}' esista")
+                logger.info(f"   2. Oppure aggiorna PINECONE_INDEX nel .env")
                 
-                pinecone.create_index(
-                    name=self.index_name,
-                    dimension=1536,  # OpenAI embeddings dimension
-                    metric='cosine'
-                )
-                logger.info(f"Indice {self.index_name} creato con successo")
+                raise ValueError(f"Indice {self.index_name} non trovato. Crealo manualmente o usa un indice esistente.")
             else:
-                logger.info(f"Indice {self.index_name} già esistente")
+                logger.info(f"✅ Indice {self.index_name} trovato!")
                 
         except Exception as e:
-            logger.error(f"Errore configurazione Pinecone: {e}")
+            logger.error(f"Errore verifica indice: {e}")
             raise
 
     def upsert_vectors(self, vectors: List[Dict[str, Any]]) -> bool:
@@ -87,6 +101,7 @@ class PineconeService:
                      filter_dict: Dict = None) -> List[Dict]:
         """Cerca vettori simili"""
         try:
+            # Uguale per entrambe le API
             response = self.index.query(
                 vector=query_vector,
                 top_k=top_k,
