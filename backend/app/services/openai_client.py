@@ -37,12 +37,21 @@ class OpenAIService:
                 )
                 return response.data[0].embedding
             else:
-                # Versione vecchia
-                response = openai.Embedding.create(
-                    model="text-embedding-ada-002", 
-                    input=text
-                )
-                return response['data'][0]['embedding']
+                # Versione vecchia - correzione per openai>=1.0.0
+                try:
+                    import openai
+                    response = openai.embeddings.create(
+                        model="text-embedding-ada-002", 
+                        input=text
+                    )
+                    return response.data[0].embedding
+                except AttributeError:
+                    # Versione molto vecchia
+                    response = openai.Embedding.create(
+                        model="text-embedding-ada-002", 
+                        input=text
+                    )
+                    return response['data'][0]['embedding']
         except Exception as e:
             logger.error(f"Errore creazione embedding: {e}")
             raise
@@ -73,17 +82,31 @@ RISPOSTA:"""
                 )
                 return response.choices[0].message.content.strip()
             else:
-                # Versione vecchia
-                response = openai.ChatCompletion.create(
-                    model="gpt-3.5-turbo",
-                    messages=[
-                        {"role": "system", "content": "Sei un assistente che risponde solo basandosi sui documenti forniti."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    max_tokens=500,
-                    temperature=0.3
-                )
-                return response.choices[0].message.content.strip()
+                # Versione vecchia - correzione per openai>=1.0.0
+                try:
+                    import openai
+                    response = openai.chat.completions.create(
+                        model="gpt-3.5-turbo",
+                        messages=[
+                            {"role": "system", "content": "Sei un assistente che risponde solo basandosi sui documenti forniti."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        max_tokens=500,
+                        temperature=0.3
+                    )
+                    return response.choices[0].message.content.strip()
+                except AttributeError:
+                    # Versione molto vecchia
+                    response = openai.ChatCompletion.create(
+                        model="gpt-3.5-turbo",
+                        messages=[
+                            {"role": "system", "content": "Sei un assistente che risponde solo basandosi sui documenti forniti."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        max_tokens=500,
+                        temperature=0.3
+                    )
+                    return response.choices[0].message.content.strip()
             
         except Exception as e:
             logger.error(f"Errore generazione risposta: {e}")

@@ -72,14 +72,24 @@ class PineconeService:
                 # API Vecchia
                 existing_indexes = self.pc.list_indexes()
             
+            logger.info(f"🔍 Indici disponibili: {existing_indexes}")
+            logger.info(f"🎯 Cercando indice: {self.index_name}")
+            
             if self.index_name not in existing_indexes:
                 logger.error(f"❌ Indice {self.index_name} non trovato!")
-                logger.info(f"📋 Indici disponibili: {existing_indexes}")
-                logger.info(f"💡 Vai su console.pinecone.io e:")
-                logger.info(f"   1. Verifica che l'indice '{self.index_name}' esista")
-                logger.info(f"   2. Oppure aggiorna PINECONE_INDEX nel .env")
                 
-                raise ValueError(f"Indice {self.index_name} non trovato. Crealo manualmente o usa un indice esistente.")
+                # Se ci sono altri indici, suggerisci di usare quelli
+                if existing_indexes:
+                    logger.info(f"� Indici disponibili che potresti usare:")
+                    for idx in existing_indexes:
+                        logger.info(f"   - {idx}")
+                    logger.info(f"💡 Aggiorna PINECONE_INDEX su Railway con uno di questi nomi")
+                else:
+                    logger.info(f"💡 Nessun indice disponibile. Devi:")
+                    logger.info(f"   1. Creare un indice su console.pinecone.io")
+                    logger.info(f"   2. Verificare che l'API key sia corretta")
+                
+                raise ValueError(f"Indice {self.index_name} non trovato. Indici disponibili: {existing_indexes}")
             else:
                 logger.info(f"✅ Indice {self.index_name} trovato!")
                 
