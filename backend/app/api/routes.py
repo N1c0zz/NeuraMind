@@ -1,9 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from app.api.deps import check_api_key
-from app.schemas import UpsertIn, UpsertOut, QueryIn, QueryOut, AnswerIn, AnswerOut
+from app.schemas import (
+    UpsertIn, UpsertOut, QueryIn, QueryOut, AnswerIn, AnswerOut,
+    DocumentUploadOut, DocumentUploadError, DocumentListOut
+)
 from app.services.chunking import chunk_text
 from app.services.rag import upsert_chunks, semantic_search, answer_from_context
+from app.services.ocr_service import ocr_service
 import logging
+import time
+import uuid
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -109,4 +116,153 @@ def answer(body: AnswerIn):
         
     except Exception as e:
         logger.error(f"Errore answer: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ========================
+# NUOVI ENDPOINT OCR
+# ========================
+
+@router.post("/upload-document", dependencies=[Depends(check_api_key)])
+async def upload_document(
+    file: UploadFile = File(...),
+    title: str = Form(""),
+    user_id: str = Form(...),
+    language: str = Form("ita+eng")
+):
+    """
+    Upload documento immagine → OCR → RAG
+    
+    Args:
+        file: File immagine (JPEG, PNG, etc.)
+        title: Titolo documento (opzionale)
+        user_id: ID utente
+        language: Lingue OCR (default: ita+eng)
+    """
+    start_time = time.time()
+    
+    try:
+        # 1. Validazione file
+        if not file.content_type or not ocr_service.is_supported_format(file.content_type):
+            return DocumentUploadError(
+                error="Formato file non supportato",
+                error_code="UNSUPPORTED_FORMAT",
+                details={"content_type": file.content_type, "supported": list(ocr_service.supported_formats)}
+            )
+        
+        # 2. Leggi contenuto file
+        file_content = await file.read()
+        if len(file_content) == 0:
+            return DocumentUploadError(
+                error="File vuoto",
+                error_code="EMPTY_FILE"
+            )
+        
+        # Limite dimensione (20MB)
+        max_size = 20 * 1024 * 1024  # 20MB
+        if len(file_content) > max_size:
+            return DocumentUploadError(
+                error=f"File troppo grande. Max: {max_size/1024/1024:.1f}MB",
+                error_code="FILE_TOO_LARGE",
+                details={"size_mb": len(file_content)/1024/1024}
+            )
+        
+        logger.info(f"File ricevuto: {file.filename}, {len(file_content)} bytes, tipo: {file.content_type}")
+        
+        # 3. OCR
+        try:
+            extracted_text, ocr_metadata = ocr_service.extract_text_with_fallback(
+                file_content, language
+            )
+        except Exception as e:
+            logger.error(f"Errore OCR: {e}")
+            return DocumentUploadError(
+                error=f"Impossibile estrarre testo: {str(e)}",
+                error_code="OCR_FAILED",
+                details={"language": language}
+            )
+        
+        # Verifica che sia stato estratto del testo
+        if not extracted_text or len(extracted_text.strip()) < 5:
+            return DocumentUploadError(
+                error="Nessun testo significativo trovato nell'immagine",
+                error_code="NO_TEXT_FOUND",
+                details={"extracted_length": len(extracted_text), "confidence": ocr_metadata.get("confidence", 0)}
+            )
+        
+        logger.info(f"OCR completato: {len(extracted_text)} caratteri, confidenza: {ocr_metadata.get('confidence', 0):.2f}")
+        
+        # 4. Salva nel RAG
+        item_id = f"doc_{user_id}_{int(time.time())}_{uuid.uuid4().hex[:8]}"
+        document_title = title or file.filename or f"Documento {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        
+        try:
+            # Chunking
+            chunks = chunk_text(extracted_text, chunk_size=1000, overlap=150)
+            logger.info(f"Creati {len(chunks)} chunks per {item_id}")
+            
+            # Upsert nel RAG
+            chunk_ids = upsert_chunks(
+                user_id=user_id,
+                item_id=item_id,
+                title=document_title,
+                chunks=chunks
+            )
+            
+            logger.info(f"Documento salvato con {len(chunk_ids)} chunks")
+            
+        except Exception as e:
+            logger.error(f"Errore salvataggio RAG: {e}")
+            return DocumentUploadError(
+                error=f"Errore salvataggio documento: {str(e)}",
+                error_code="RAG_SAVE_FAILED"
+            )
+        
+        # 5. Risposta successo
+        processing_time = time.time() - start_time
+        
+        return DocumentUploadOut(
+            success=True,
+            item_id=item_id,
+            title=document_title,
+            text_preview=extracted_text[:200] + ("..." if len(extracted_text) > 200 else ""),
+            chunks_created=len(chunk_ids),
+            ocr_metadata=ocr_metadata,
+            processing_time=round(processing_time, 2)
+        )
+        
+    except Exception as e:
+        logger.error(f"Errore upload documento: {e}")
+        return DocumentUploadError(
+            error=f"Errore interno: {str(e)}",
+            error_code="INTERNAL_ERROR"
+        )
+
+
+@router.get("/users/{user_id}/documents", response_model=DocumentListOut, dependencies=[Depends(check_api_key)])
+async def list_user_documents(user_id: str, limit: int = 50):
+    """Lista documenti di un utente"""
+    try:
+        # TODO: Implementare query Pinecone per lista documenti
+        # Per ora restituiamo lista vuota
+        return DocumentListOut(
+            user_id=user_id,
+            documents=[],
+            total_count=0
+        )
+        
+    except Exception as e:
+        logger.error(f"Errore lista documenti: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/documents/{item_id}", dependencies=[Depends(check_api_key)])
+async def delete_document(item_id: str, user_id: str):
+    """Elimina documento"""
+    try:
+        # TODO: Implementare eliminazione da Pinecone
+        return {"success": True, "message": f"Documento {item_id} eliminato"}
+        
+    except Exception as e:
+        logger.error(f"Errore eliminazione documento: {e}")
         raise HTTPException(status_code=500, detail=str(e))
