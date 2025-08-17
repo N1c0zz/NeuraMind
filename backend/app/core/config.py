@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     # Pinecone Config
     pinecone_index_name: str = "neuramind-index"
     pinecone_cloud: str = "aws"
-    pinecone_region: str = "us-east-1"
+    pinecone_region: str = "us-east-1-aws"  # Formato corretto per Pinecone 2.x
     
     # Environment
     environment: str = "development"
