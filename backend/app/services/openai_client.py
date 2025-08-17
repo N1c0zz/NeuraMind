@@ -35,7 +35,13 @@ class OpenAIService:
         """Genera una risposta basata su query e contesto"""
         try:
             prompt = f"""Basandoti esclusivamente sui seguenti documenti, rispondi alla domanda dell'utente.
-Se la risposta non è presente nei documenti, rispondi "Non ho informazioni sufficienti per rispondere a questa domanda nei documenti forniti."
+
+ISTRUZIONI SPECIALI:
+- Se la domanda richiede calcoli (media, somma, totale), eseguili utilizzando i numeri trovati nei documenti
+- Per domande su voti: estrai tutti i voti numerici e calcola la media se richiesto
+- Per domande sui crediti: cerca termini come "CFU", "crediti", "ECTS" nei documenti
+- Se devi fare calcoli, mostra sempre il procedimento: es. "Media: (28+30+24)/3 = 27.3"
+- Se la risposta non è presente nei documenti, rispondi "Non ho informazioni sufficienti per rispondere a questa domanda nei documenti forniti."
 
 DOCUMENTI:
 {context}
@@ -47,7 +53,7 @@ RISPOSTA:"""
             response = self.client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
-                    {"role": "system", "content": "Sei un assistente che risponde solo basandosi sui documenti forniti."},
+                    {"role": "system", "content": "Sei un assistente intelligente che risponde solo basandosi sui documenti forniti. Puoi fare calcoli matematici quando necessario utilizzando i dati trovati nei documenti."},
                     {"role": "user", "content": prompt}
                 ],
                 max_tokens=500,
