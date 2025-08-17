@@ -45,16 +45,16 @@ class DocumentService:
                         'user_id': metadata.get('user_id'),
                         'created_at': metadata.get('timestamp', ''),
                         'upload_date': metadata.get('timestamp', ''),
-                        'text_length': len(metadata.get('chunk_text', '')),
+                        'text_length': len(metadata.get('text', '')),
                         'chunks_count': 1,
                         'ocr_confidence': metadata.get('ocr_confidence'),
-                        'text_preview': metadata.get('chunk_text', '')[:200] + '...',
+                        'text_preview': metadata.get('text', '')[:200] + '...',
                         'file_type': metadata.get('file_type', 'Sconosciuto')
                     }
                 elif item_id:
                     # Aggiorna conteggio chunk e lunghezza testo
                     documents_map[item_id]['chunks_count'] += 1
-                    chunk_text = metadata.get('chunk_text', '')
+                    chunk_text = metadata.get('text', '')
                     documents_map[item_id]['text_length'] += len(chunk_text)
             
             # Converti in lista e ordina per data

@@ -259,7 +259,12 @@ Firma: [Firma digitale]"""
                 user_id=user_id,
                 item_id=item_id,
                 title=document_title,
-                chunks=chunks
+                chunks=chunks,
+                additional_metadata={
+                    "file_type": "image_with_ocr",
+                    "ocr_confidence": ocr_metadata.get("confidence"),
+                    "upload_date": datetime.now().isoformat()
+                }
             )
             
             logger.info(f"Documento salvato con {len(chunk_ids)} chunks")

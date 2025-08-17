@@ -6,16 +6,21 @@ from app.services.pinecone_client import PineconeService
 
 logger = logging.getLogger(__name__)
 
-def upsert_chunks(user_id: str, item_id: str, title: str, chunks: List[str]) -> List[str]:
+def upsert_chunks(user_id: str, item_id: str, title: str, chunks: List[str], 
+                  additional_metadata: Dict = None) -> List[str]:
     """
     Crea embeddings per i chunks e li salva in Pinecone
     """
     try:
+        from datetime import datetime
         openai_service = OpenAIService()
         pinecone_service = PineconeService()
         
         vectors = []
         chunk_ids = []
+        
+        # Timestamp per tutti i chunk del documento
+        timestamp = datetime.now().isoformat()
         
         for i, chunk in enumerate(chunks):
             # Crea ID univoco per il chunk
@@ -25,18 +30,27 @@ def upsert_chunks(user_id: str, item_id: str, title: str, chunks: List[str]) -> 
             # Crea embedding
             embedding = openai_service.create_embedding(chunk)
             
+            # Prepara metadati base
+            metadata = {
+                "user_id": user_id,
+                "item_id": item_id,
+                "title": title,
+                "chunk_index": i,
+                "text": chunk,
+                "preview": chunk[:200] + "..." if len(chunk) > 200 else chunk,
+                "timestamp": timestamp,
+                "created_at": timestamp
+            }
+            
+            # Aggiungi metadati aggiuntivi se forniti
+            if additional_metadata:
+                metadata.update(additional_metadata)
+            
             # Prepara vettore per Pinecone
             vector = {
                 "id": chunk_id,
                 "values": embedding,
-                "metadata": {
-                    "user_id": user_id,
-                    "item_id": item_id,
-                    "title": title,
-                    "chunk_index": i,
-                    "text": chunk,
-                    "preview": chunk[:200] + "..." if len(chunk) > 200 else chunk
-                }
+                "metadata": metadata
             }
             vectors.append(vector)
         
