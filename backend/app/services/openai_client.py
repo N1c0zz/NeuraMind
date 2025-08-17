@@ -11,17 +11,15 @@ class OpenAIService:
         if not self.api_key:
             raise ValueError("OpenAI API key non configurata")
         
-        # Inizializzazione semplificata
+        # Inizializzazione semplificata senza parametri problematici
         try:
-            # Prova prima il metodo nuovo
-            self.client = openai.OpenAI(
-                api_key=self.api_key,
-                timeout=30.0
-            )
+            # Prova prima il metodo nuovo senza timeout/proxies
+            self.client = openai.OpenAI(api_key=self.api_key)
             self.use_new_api = True
+            logger.info("✅ OpenAI client nuovo inizializzato")
         except Exception as e:
             # Fallback al metodo vecchio
-            logger.warning(f"Usando API vecchia OpenAI: {e}")
+            logger.warning(f"⚠️  Fallback API vecchia OpenAI: {e}")
             openai.api_key = self.api_key
             self.client = None
             self.use_new_api = False
