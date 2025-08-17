@@ -24,29 +24,23 @@ class PineconeService:
             
             logger.info("🔄 Usando Pinecone API vecchia (2.x)")
             
-            # Gestione errori per environment
-            environments_to_try = [
-                settings.pinecone_region,
-                "us-east-1-aws",
-                "us-east4-gcp", 
-                "europe-west1-gcp",
-                "asia-northeast1-gcp"
-            ]
-            
-            for env in environments_to_try:
+            # Per la versione 2.x, usa init senza environment se non funziona
+            try:
+                # Prova prima con environment
+                pinecone.init(
+                    api_key=settings.pinecone_api_key,
+                    environment=settings.pinecone_region
+                )
+                logger.info(f"✅ Pinecone init con environment: {settings.pinecone_region}")
+            except Exception as e:
+                logger.warning(f"⚠️ Fallback: init senza environment: {e}")
+                # Fallback: init solo con API key (per alcune versioni)
                 try:
-                    logger.info(f"Tentativo connessione environment: {env}")
-                    pinecone.init(
-                        api_key=settings.pinecone_api_key,
-                        environment=env
-                    )
-                    self.pinecone_env = env
-                    break
-                except Exception as e:
-                    logger.warning(f"Fallito environment {env}: {e}")
-                    continue
-            else:
-                raise ValueError("Impossibile connettersi a nessun environment Pinecone")
+                    pinecone.init(api_key=settings.pinecone_api_key)
+                    logger.info("✅ Pinecone init solo con API key")
+                except Exception as e2:
+                    logger.error(f"❌ Impossibile inizializzare Pinecone: {e2}")
+                    raise ValueError(f"Impossibile inizializzare Pinecone: {e2}")
             
             self.pc = pinecone
             self.use_new_api = False
