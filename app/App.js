@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import { Provider as PaperProvider } from 'react-native-paper';
+import { Provider as PaperProvider, DefaultTheme } from 'react-native-paper';
 import { StatusBar } from 'expo-status-bar';
 import { COLORS } from './src/utils/constants';
 
@@ -14,7 +14,9 @@ import UploadScreen from './src/screens/UploadScreen';
 const Stack = createStackNavigator();
 
 const theme = {
+  ...DefaultTheme,
   colors: {
+    ...DefaultTheme.colors,
     primary: COLORS.primary,
     background: COLORS.background,
     surface: COLORS.surface,
