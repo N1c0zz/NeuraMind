@@ -86,11 +86,30 @@ def answer_from_context(query: str, contexts: List[Dict]) -> str:
     try:
         openai_service = OpenAIService()
         
-        # Prepara il contesto
-        context_text = "\n\n".join([
-            f"Documento: {ctx.get('metadata', {}).get('title', 'Senza titolo')}\n{ctx.get('metadata', {}).get('text', '')}"
-            for ctx in contexts
-        ])
+        # Pulisce e prepara il contesto
+        cleaned_contexts = []
+        for ctx in contexts:
+            # Estrai il testo dal contesto
+            text = ctx.get('metadata', {}).get('chunk_text', '') or ctx.get('text', '')
+            title = ctx.get('metadata', {}).get('title', 'Documento')
+            
+            # Pulizia testo OCR
+            if text:
+                # Rimuovi caratteri di formattazione OCR
+                text = text.replace('|', ' ')
+                text = text.replace('\\-', '-')
+                text = text.replace('  ', ' ')
+                text = ' '.join(text.split())  # Normalizza spazi
+                
+                cleaned_contexts.append(f"Documento '{title}':\n{text}")
+        
+        if not cleaned_contexts:
+            return "Non sono riuscito a trovare contenuto leggibile nei documenti."
+        
+        context_text = "\n\n".join(cleaned_contexts)
+        
+        # Log del contesto per debug
+        logger.info(f"Contesto preparato per AI (prime 200 caratteri): {context_text[:200]}...")
         
         # Genera risposta
         answer = openai_service.generate_answer(query, context_text)
