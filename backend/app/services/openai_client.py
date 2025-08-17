@@ -11,19 +11,25 @@ class OpenAIService:
         if not self.api_key:
             raise ValueError("OpenAI API key non configurata")
         
-        # Inizializzazione robusta del client
+        # Inizializzazione semplificata
         try:
-            self.client = openai.OpenAI(api_key=self.api_key)
+            # Prova prima il metodo nuovo
+            self.client = openai.OpenAI(
+                api_key=self.api_key,
+                timeout=30.0
+            )
+            self.use_new_api = True
         except Exception as e:
-            # Fallback per versioni più vecchie
-            logger.warning(f"Errore inizializzazione client OpenAI: {e}")
+            # Fallback al metodo vecchio
+            logger.warning(f"Usando API vecchia OpenAI: {e}")
             openai.api_key = self.api_key
             self.client = None
+            self.use_new_api = False
 
     def create_embedding(self, text: str) -> List[float]:
         """Crea embedding per un testo"""
         try:
-            if self.client:
+            if self.use_new_api and self.client:
                 # Versione nuova
                 response = self.client.embeddings.create(
                     model="text-embedding-ada-002",
@@ -54,7 +60,7 @@ DOMANDA: {query}
 
 RISPOSTA:"""
 
-            if self.client:
+            if self.use_new_api and self.client:
                 # Versione nuova
                 response = self.client.chat.completions.create(
                     model="gpt-4o-mini",
