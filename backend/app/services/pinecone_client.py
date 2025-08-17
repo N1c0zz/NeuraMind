@@ -37,7 +37,7 @@ class PineconeService:
         try:
             logger.info(f"🔍 Verifica indice {self.index_name}...")
             
-            # Lista indici con API 3.x
+            # Lista indici con API 3.x (nuova architettura)
             indexes_response = self.pc.list_indexes()
             existing_indexes = [idx.name for idx in indexes_response]
             
@@ -56,47 +56,26 @@ class PineconeService:
                         logger.info(f"   - {idx}")
                     logger.info(f"💡 Aggiorna PINECONE_INDEX su Railway")
                 else:
-                    logger.info(f"💡 Nessun indice trovato - crea l'indice su console.pinecone.io")
+                    logger.info(f"💡 Nessun indice trovato - verifica console.pinecone.io")
                 
                 raise ValueError(f"Indice {self.index_name} non trovato. Indici disponibili: {existing_indexes}")
             else:
                 logger.info(f"✅ Indice {self.index_name} trovato!")
+                
+                # Per la nuova architettura, mostra anche l'host dell'indice
+                try:
+                    index_info = next(idx for idx in indexes_response if idx.name == self.index_name)
+                    if hasattr(index_info, 'host'):
+                        logger.info(f"🌐 Host indice: {index_info.host}")
+                except Exception as host_e:
+                    logger.debug(f"Info host non disponibile: {host_e}")
                 
         except Exception as e:
             logger.error(f"❌ Errore verifica indice: {e}")
-            raise
-        """Verifica che l'indice esista"""
-        try:
-            if self.use_new_api:
-                # API Nuova
-                existing_indexes = [idx.name for idx in self.pc.list_indexes()]
-            else:
-                # API Vecchia
-                existing_indexes = self.pc.list_indexes()
-            
-            logger.info(f"🔍 Indici disponibili: {existing_indexes}")
-            logger.info(f"🎯 Cercando indice: {self.index_name}")
-            
-            if self.index_name not in existing_indexes:
-                logger.error(f"❌ Indice {self.index_name} non trovato!")
-                
-                # Se ci sono altri indici, suggerisci di usare quelli
-                if existing_indexes:
-                    logger.info(f"� Indici disponibili che potresti usare:")
-                    for idx in existing_indexes:
-                        logger.info(f"   - {idx}")
-                    logger.info(f"💡 Aggiorna PINECONE_INDEX su Railway con uno di questi nomi")
-                else:
-                    logger.info(f"💡 Nessun indice disponibile. Devi:")
-                    logger.info(f"   1. Creare un indice su console.pinecone.io")
-                    logger.info(f"   2. Verificare che l'API key sia corretta")
-                
-                raise ValueError(f"Indice {self.index_name} non trovato. Indici disponibili: {existing_indexes}")
-            else:
-                logger.info(f"✅ Indice {self.index_name} trovato!")
-                
-        except Exception as e:
-            logger.error(f"Errore verifica indice: {e}")
+            logger.error(f"💡 Possibili cause:")
+            logger.error(f"   - API key non valida")
+            logger.error(f"   - Indice in region diversa")
+            logger.error(f"   - Problemi di rete")
             raise
 
     def upsert_vectors(self, vectors: List[Dict[str, Any]]) -> bool:
