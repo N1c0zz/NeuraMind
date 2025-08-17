@@ -17,12 +17,16 @@ class DocumentService:
         Recupera tutti i documenti di un utente da Pinecone metadata
         """
         try:
+            logger.info(f"🔍 Cercando documenti per utente: {user_id}")
+            
             # Query Pinecone per tutti i documenti dell'utente
             # Utilizziamo una query con filtro per ottenere i metadati
             filter_dict = {"user_id": user_id}
             
             # Facciamo una query dummy per ottenere tutti i chunk dell'utente
             dummy_vector = [0.0] * 1536  # Vector size per OpenAI embeddings
+            
+            logger.info(f"🔍 Eseguendo query Pinecone con filtro: {filter_dict}")
             
             results = self.pinecone_service.query_vectors(
                 query_vector=dummy_vector,
@@ -31,12 +35,21 @@ class DocumentService:
                 include_metadata=True
             )
             
+            logger.info(f"📊 Query Pinecone restituita {len(results)} risultati")
+            
+            # Log dei primi risultati per debug
+            for i, match in enumerate(results[:3]):  # Solo primi 3 per evitare spam
+                metadata = match.get('metadata', {})
+                logger.info(f"   Risultato {i}: item_id={metadata.get('item_id')}, title={metadata.get('title')}")
+            
             # Raggruppa i chunk per documento
             documents_map = {}
             
             for match in results:
                 metadata = match.get('metadata', {})
                 item_id = metadata.get('item_id')
+                
+                logger.debug(f"Processando chunk con item_id: {item_id}")
                 
                 if item_id and item_id not in documents_map:
                     documents_map[item_id] = {
@@ -61,7 +74,12 @@ class DocumentService:
             documents_list = list(documents_map.values())
             documents_list.sort(key=lambda x: x.get('created_at', ''), reverse=True)
             
-            logger.info(f"Trovati {len(documents_list)} documenti per utente {user_id}")
+            logger.info(f"✅ Trovati {len(documents_list)} documenti unici per utente {user_id}")
+            if documents_list:
+                logger.info(f"📋 Documenti trovati:")
+                for doc in documents_list:
+                    logger.info(f"   - {doc['title']} ({doc['item_id']}) - {doc['chunks_count']} chunks")
+            
             return documents_list
             
         except Exception as e:
