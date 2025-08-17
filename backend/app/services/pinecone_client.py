@@ -10,11 +10,39 @@ class PineconeService:
         if not settings.pinecone_api_key:
             raise ValueError("PINECONE_API_KEY non configurata")
         
-        # Inizializza Pinecone (versione 2.2.4)
-        pinecone.init(
-            api_key=settings.pinecone_api_key,
-            environment=settings.pinecone_region
-        )
+        # Inizializza Pinecone (versione 2.2.4) con gestione errori
+        try:
+            # Prova environment diversi per Pinecone
+            environments_to_try = [
+                "us-east-1-aws",
+                "us-east4-gcp", 
+                "europe-west1-gcp",
+                "asia-northeast1-gcp"
+            ]
+            
+            pinecone_env = settings.pinecone_region
+            if pinecone_env == "us-east-1":
+                pinecone_env = "us-east-1-aws"
+            
+            logger.info(f"Tentativo connessione Pinecone environment: {pinecone_env}")
+            
+            pinecone.init(
+                api_key=settings.pinecone_api_key,
+                environment=pinecone_env
+            )
+            
+        except Exception as e:
+            logger.error(f"Errore connessione Pinecone con {pinecone_env}: {e}")
+            # Prova environment di default
+            try:
+                logger.info("Tentativo con environment di default us-east-1-aws")
+                pinecone.init(
+                    api_key=settings.pinecone_api_key,
+                    environment="us-east-1-aws" 
+                )
+            except Exception as e2:
+                logger.error(f"Errore anche con environment di default: {e2}")
+                raise ValueError(f"Impossibile connettersi a Pinecone. Verifica API key e environment.")
         
         self.index_name = settings.pinecone_index_name
         
