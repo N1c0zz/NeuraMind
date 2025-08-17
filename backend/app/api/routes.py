@@ -35,15 +35,9 @@ def debug_info():
             pinecone_service = PineconeService()
             debug_data["pinecone_connection"] = "OK"
             
-            # Lista indici disponibili
-            if hasattr(pinecone_service, 'pc'):
-                if pinecone_service.use_new_api:
-                    available_indexes = [idx.name for idx in pinecone_service.pc.list_indexes()]
-                else:
-                    available_indexes = pinecone_service.pc.list_indexes()
-                debug_data["available_indexes"] = available_indexes
-            else:
-                debug_data["available_indexes"] = "Unable to list"
+            # Lista indici con API 3.x
+            available_indexes = [idx.name for idx in pinecone_service.pc.list_indexes()]
+            debug_data["available_indexes"] = available_indexes
                 
         except Exception as e:
             debug_data["pinecone_connection"] = f"FAILED: {str(e)}"

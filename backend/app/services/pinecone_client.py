@@ -9,41 +9,20 @@ class PineconeService:
         if not settings.pinecone_api_key:
             raise ValueError("PINECONE_API_KEY non configurata")
         
-        # Prova prima l'API nuova, poi fallback alla vecchia
+        # Usa solo l'API nuova (3.x+)
         try:
-            # API Nuova (3.x+)
             from pinecone import Pinecone
             
-            logger.info("🆕 Usando Pinecone API nuova (3.x+)")
+            logger.info("🆕 Inizializzazione Pinecone 3.x+")
             self.pc = Pinecone(api_key=settings.pinecone_api_key)
-            self.use_new_api = True
+            logger.info("✅ Pinecone client inizializzato")
             
-        except ImportError:
-            # API Vecchia (2.x)
-            import pinecone
-            
-            logger.info("🔄 Usando Pinecone API vecchia (2.x)")
-            
-            # Per la versione 2.x, usa init senza environment se non funziona
-            try:
-                # Prova prima con environment
-                pinecone.init(
-                    api_key=settings.pinecone_api_key,
-                    environment=settings.pinecone_region
-                )
-                logger.info(f"✅ Pinecone init con environment: {settings.pinecone_region}")
-            except Exception as e:
-                logger.warning(f"⚠️ Fallback: init senza environment: {e}")
-                # Fallback: init solo con API key (per alcune versioni)
-                try:
-                    pinecone.init(api_key=settings.pinecone_api_key)
-                    logger.info("✅ Pinecone init solo con API key")
-                except Exception as e2:
-                    logger.error(f"❌ Impossibile inizializzare Pinecone: {e2}")
-                    raise ValueError(f"Impossibile inizializzare Pinecone: {e2}")
-            
-            self.pc = pinecone
-            self.use_new_api = False
+        except ImportError as e:
+            logger.error(f"❌ Pinecone 3.x non disponibile: {e}")
+            raise ValueError("Pinecone 3.x+ richiesto. Aggiorna requirements.txt")
+        except Exception as e:
+            logger.error(f"❌ Errore inizializzazione Pinecone: {e}")
+            raise ValueError(f"Impossibile inizializzare Pinecone: {e}")
         
         self.index_name = settings.pinecone_index_name
         
@@ -51,12 +30,41 @@ class PineconeService:
         self._ensure_index_exists()
         
         # Connettiti all'indice
-        if self.use_new_api:
-            self.index = self.pc.Index(self.index_name)
-        else:
-            self.index = self.pc.Index(self.index_name)
+        self.index = self.pc.Index(self.index_name)
 
     def _ensure_index_exists(self):
+        """Verifica che l'indice esista"""
+        try:
+            logger.info(f"🔍 Verifica indice {self.index_name}...")
+            
+            # Lista indici con API 3.x
+            indexes_response = self.pc.list_indexes()
+            existing_indexes = [idx.name for idx in indexes_response]
+            
+            logger.info(f"📊 Indici esistenti: {existing_indexes}")
+            logger.info(f"🎯 Indice cercato: {self.index_name}")
+            
+            if self.index_name not in existing_indexes:
+                logger.error(f"❌ Indice {self.index_name} non trovato!")
+                logger.info(f"💡 Debug info:")
+                logger.info(f"   - API Key: {settings.pinecone_api_key[:15]}...{settings.pinecone_api_key[-5:]}")
+                logger.info(f"   - Indici disponibili: {existing_indexes}")
+                
+                if existing_indexes:
+                    logger.info(f"💡 Indici che potresti usare:")
+                    for idx in existing_indexes:
+                        logger.info(f"   - {idx}")
+                    logger.info(f"💡 Aggiorna PINECONE_INDEX su Railway")
+                else:
+                    logger.info(f"💡 Nessun indice trovato - crea l'indice su console.pinecone.io")
+                
+                raise ValueError(f"Indice {self.index_name} non trovato. Indici disponibili: {existing_indexes}")
+            else:
+                logger.info(f"✅ Indice {self.index_name} trovato!")
+                
+        except Exception as e:
+            logger.error(f"❌ Errore verifica indice: {e}")
+            raise
         """Verifica che l'indice esista"""
         try:
             if self.use_new_api:
@@ -105,7 +113,7 @@ class PineconeService:
                      filter_dict: Dict = None) -> List[Dict]:
         """Cerca vettori simili"""
         try:
-            # Uguale per entrambe le API
+            # API 3.x
             response = self.index.query(
                 vector=query_vector,
                 top_k=top_k,
