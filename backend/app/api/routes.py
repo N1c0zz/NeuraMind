@@ -21,7 +21,9 @@ def debug_info():
         
         debug_data = {
             "pinecone_api_key_set": bool(settings.pinecone_api_key),
+            "pinecone_api_key_preview": settings.pinecone_api_key[:15] + "..." + settings.pinecone_api_key[-5:] if settings.pinecone_api_key else "None",
             "openai_api_key_set": bool(settings.openai_api_key),
+            "openai_api_key_preview": settings.openai_api_key[:15] + "..." + settings.openai_api_key[-5:] if settings.openai_api_key else "None",
             "pinecone_index_name": settings.pinecone_index_name,
             "pinecone_region": settings.pinecone_region,
             "pinecone_cloud": settings.pinecone_cloud,
