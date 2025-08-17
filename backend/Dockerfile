@@ -2,10 +2,15 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Installa dipendenze sistema
+# Installa dipendenze sistema + Tesseract OCR
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
+    tesseract-ocr \
+    tesseract-ocr-ita \
+    tesseract-ocr-eng \
+    libtesseract-dev \
+    libmagic1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copia requirements e installa
