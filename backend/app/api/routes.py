@@ -292,11 +292,6 @@ Firma: [Firma digitale]"""
         )
 
 
-@router.get("/users/{user_id}/documents", response_model=DocumentListOut, dependencies=[Depends(check_api_key)])
-async def list_user_documents(user_id: str, limit: int = 50):
-    """Lista documenti di un utente"""
-    try:
-        # TODO: Implementare query Pinecone per lista documenti
 @router.get("/documents/{user_id}", response_model=DocumentListOut, dependencies=[Depends(check_api_key)])
 def list_user_documents(user_id: str):
     """
